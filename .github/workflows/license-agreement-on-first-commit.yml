@@ -1,0 +1,74 @@
+name: First-time Contributor Check
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  issue_comment:
+    types: [created, edited]
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  greeting:
+    if: github.event_name == 'pull_request' && github.event.action == 'opened'
+    name: Greet First-Time Contributors
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/first-interaction@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          issue-message: |
+            ### Hey @${{ github.actor }}! 🎉
+            
+            Thanks for opening your first pull request. We really appreciate it.
+            
+            👉 Please confirm by writing this comment that your contribution and following ones comply with the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0) and the [Code of Conduct](https://github.com/operaton/operaton/blob/main/CODE_OF_CONDUCT.md):
+            ```
+            I confirm that my contribution and following ones comply with the Apache License 2.0 and the Code of Conduct.
+            ```
+            Consider adding a star ⭐️ to the [repository](https://github.com/operaton/operaton) if you like it, we appreciate that.
+            
+            Contributors will be added to the release notes of the next release.
+
+  check-confirmation:
+    if: github.event_name != 'pull_request' || github.event.action != 'opened'
+    name: Check Contributor Confirmation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for confirmation comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = context.payload.pull_request 
+              ? context.payload.pull_request.number 
+              : context.payload.issue.number;
+
+            // PR-Daten holen
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+            });
+
+            const prAuthor = pr.user.login;
+
+            // Alle Kommentare zum PR holen
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+            });
+
+            // Prüfen, ob PR-Ersteller den Bestätigungstext geschrieben hat
+            const confirmation = comments.find(c =>
+              c.user.login === prAuthor &&
+              c.body.toLowerCase().includes("I confirm that my contribution and following ones comply with the Apache License 2.0 and the Code of Conduct.")
+            );
+
+            if (!confirmation) {
+              core.setFailed("❌ The PR author has not confirmed the Apache License 2.0 contribution yet.");
+            } else {
+              core.info("✅ Confirmation found.");
+            }
