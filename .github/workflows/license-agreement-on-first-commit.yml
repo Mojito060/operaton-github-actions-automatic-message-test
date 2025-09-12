@@ -1,7 +1,7 @@
 name: First-time Contributor Check
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened]
   issue_comment:
     types: [created, edited]
@@ -22,8 +22,6 @@ jobs:
             const author = context.actor;
             const { owner, repo } = context.repo;
 
-            // NEUER ANSATZ: Liste alle Issues des Autors und filtere nach PRs.
-            // Das ist zuverlässiger als die Suche.
             console.log(`Checking for past PRs from ${author}...`);
             const allIssues = await github.paginate(github.rest.issues.listForRepo, {
               owner,
@@ -68,7 +66,6 @@ jobs:
   check-confirmation:
     name: Check Contributor Confirmation
     runs-on: ubuntu-latest
-    # Wir führen diesen Job nur bei Kommentaren aus
     if: github.event_name == 'issue_comment'
     steps:
       - name: Check for confirmation comment
