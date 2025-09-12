@@ -2,40 +2,65 @@ name: First-time Contributor Check
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened]
   issue_comment:
     types: [created, edited]
 
 permissions:
-  issues: write
   pull-requests: write
-
+  issues: write
+  search: read
 jobs:
-  greeting:
-    if: github.event_name == 'pull_request' && github.event.action == 'opened'
-    name: Greet First-Time Contributors
+  greet-first-time-pr:
+    name: Greet First-Time PR Contributors
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/first-interaction@v3
+      - name: Check for first-time PR contributor
+        uses: actions/github-script@v7
         with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          pr_message: |
-            ### Hey @${{ github.actor }}! 🎉
+          script: |
+            const author = context.actor;
+            const { owner, repo } = context.repo;
+
+            // 1. Search for all prs of the author
+            const query = `is:pr repo:${owner}/${repo} author:${author}`;
+            const result = await github.rest.search.issuesAndPullRequests({ q: query });
+            const prCount = result.data.total_count;
+
+            console.log(`Found ${prCount} PR(s) from ${author}.`);
+
+            // 2. If its the first post the comment
+            if (prCount === 1) {
+              console.log('This is the first PR. Posting a welcome comment.');
             
-            Thanks for opening your first pull request. We really appreciate it.
+              const prMessage = `
+              ### Hey @${author}! 🎉
             
-            👉 Please confirm by writing this comment that your contribution and following ones comply with the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0) and the [Code of Conduct](https://github.com/operaton/operaton/blob/main/CODE_OF_CONDUCT.md):
-            ```
-            I confirm that my contribution and following ones comply with the Apache License 2.0 and the Code of Conduct.
-            ```
-            Consider adding a star ⭐️ to the [repository](https://github.com/operaton/operaton) if you like it, we appreciate that.
+              Thanks for opening your first pull request. We really appreciate it.
             
-            Contributors will be added to the release notes of the next release.
+              👉 Please confirm by writing this comment that your contribution and following ones comply with the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0) and the [Code of Conduct](https://github.com/operaton/operaton/blob/main/CODE_OF_CONDUCT.md):
+              \`\`\`
+              I confirm that my contribution and following ones comply with the Apache License 2.0 and the Code of Conduct.
+              \`\`\`
+              Consider adding a star ⭐️ to the [repository](https://github.com/operaton/operaton) if you star it, we appreciate that.
+            
+              Contributors will be added to the release notes of the next release.
+              `;
+
+              await github.rest.issues.createComment({
+                owner: owner,
+                repo: repo,
+                issue_number: context.issue.number,
+                body: prMessage
+              });
+            } else {
+              console.log('Not the first PR. Skipping comment.');
+            }
 
   check-confirmation:
-    if: github.event_name != 'pull_request' || github.event.action != 'opened'
     name: Check Contributor Confirmation
     runs-on: ubuntu-latest
+    if: github.event_name == 'issue_comment'
     steps:
       - name: Check for confirmation comment
         uses: actions/github-script@v7
@@ -43,7 +68,7 @@ jobs:
           script: |
             const prNumber = context.issue.number;
 
-            // Get PR data to find the author
+            // Get PR-data
             const { data: pr } = await github.rest.pulls.get({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -52,14 +77,14 @@ jobs:
 
             const prAuthor = pr.user.login;
 
-            // Get all comments on the PR
+            // Get all comments of pr
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: prNumber,
             });
 
-            // Check if the PR author has written the confirmation text
+            // Check if conformation text was written by author of pr
             const confirmation = comments.find(c =>
               c.user.login === prAuthor &&
               c.body.toLowerCase().includes("i confirm that my contribution and following ones comply with the apache license 2.0 and the code of conduct.")
