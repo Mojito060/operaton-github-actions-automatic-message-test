@@ -9,7 +9,7 @@ on:
 permissions:
   pull-requests: write
   issues: write
-  search: read
+
 jobs:
   greet-first-time-pr:
     name: Greet First-Time PR Contributors
@@ -22,14 +22,22 @@ jobs:
             const author = context.actor;
             const { owner, repo } = context.repo;
 
-            // 1. Search for all prs of the author
-            const query = `is:pr repo:${owner}/${repo} author:${author}`;
-            const result = await github.rest.search.issuesAndPullRequests({ q: query });
-            const prCount = result.data.total_count;
+            // NEUER ANSATZ: Liste alle Issues des Autors und filtere nach PRs.
+            // Das ist zuverlässiger als die Suche.
+            console.log(`Checking for past PRs from ${author}...`);
+            const allIssues = await github.paginate(github.rest.issues.listForRepo, {
+              owner,
+              repo,
+              creator: author,
+              state: 'all'
+            });
+
+            const prs = allIssues.filter(issue => issue.pull_request);
+            const prCount = prs.length;
 
             console.log(`Found ${prCount} PR(s) from ${author}.`);
 
-            // 2. If its the first post the comment
+            // Wenn es genau 1 PR gibt (nämlich diesen hier), dann poste den Kommentar
             if (prCount === 1) {
               console.log('This is the first PR. Posting a welcome comment.');
             
@@ -42,7 +50,7 @@ jobs:
               \`\`\`
               I confirm that my contribution and following ones comply with the Apache License 2.0 and the Code of Conduct.
               \`\`\`
-              Consider adding a star ⭐️ to the [repository](https://github.com/operaton/operaton) if you star it, we appreciate that.
+              Consider adding a star ⭐️ to the [repository](https://github.com/operaton/operaton) if you like it, we appreciate that.
             
               Contributors will be added to the release notes of the next release.
               `;
@@ -60,6 +68,7 @@ jobs:
   check-confirmation:
     name: Check Contributor Confirmation
     runs-on: ubuntu-latest
+    # Wir führen diesen Job nur bei Kommentaren aus
     if: github.event_name == 'issue_comment'
     steps:
       - name: Check for confirmation comment
@@ -68,7 +77,6 @@ jobs:
           script: |
             const prNumber = context.issue.number;
 
-            // Get PR-data
             const { data: pr } = await github.rest.pulls.get({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -77,14 +85,12 @@ jobs:
 
             const prAuthor = pr.user.login;
 
-            // Get all comments of pr
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: prNumber,
             });
 
-            // Check if conformation text was written by author of pr
             const confirmation = comments.find(c =>
               c.user.login === prAuthor &&
               c.body.toLowerCase().includes("i confirm that my contribution and following ones comply with the apache license 2.0 and the code of conduct.")
