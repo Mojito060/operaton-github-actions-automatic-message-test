@@ -2,7 +2,7 @@ name: First-time Contributor Check
 
 on:
   pull_request_target:
-    types: [opened]
+    types: [opened, synchronize, reopened]
   issue_comment:
     types: [created, edited]
 
@@ -14,6 +14,7 @@ jobs:
   greet-first-time-pr:
     name: Greet First-Time PR Contributors
     runs-on: ubuntu-latest
+    if: github.event.action == 'opened'
     steps:
       - name: Check for first-time PR contributor
         uses: actions/github-script@v7
@@ -38,7 +39,6 @@ jobs:
             console.log(`Found ${prCount} PR(s) from ${author}.`);
             console.log(`PR Title is: "${prTitle}"`);
 
-            // GEÄNDERTE BEDINGUNG: Prüft auf den ersten PR ODER das "Zauberwort" im Titel
             if (prCount === 1 || prTitle.includes('[FORCE GREETING]')) {
               if (prTitle.includes('[FORCE GREETING]')) {
                 console.log('Forcing greeting due to "[FORCE GREETING]" in title.');
@@ -66,15 +66,12 @@ jobs:
                 issue_number: context.issue.number,
                 body: prMessage
               });
-            } else {
-              console.log('Not the first PR and no force trigger found. Skipping comment.');
             }
-
 
   check-confirmation:
     name: Check Contributor Confirmation
     runs-on: ubuntu-latest
-    if: github.event_name == 'issue_comment'
+    if: github.event.action != 'opened'
     steps:
       - name: Check for confirmation comment
         uses: actions/github-script@v7
