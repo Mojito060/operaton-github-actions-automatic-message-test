@@ -14,7 +14,7 @@ jobs:
   greet-first-time-pr:
     name: Greet First-Time PR Contributors
     runs-on: ubuntu-latest
-    if: github.event.action == 'opened'
+    if: github.event.action == 'opened' && github.event.pull_request.head.repo.fork
     steps:
       - name: Check for first-time PR contributor
         uses: actions/github-script@v7
@@ -66,40 +66,4 @@ jobs:
                 issue_number: context.issue.number,
                 body: prMessage
               });
-            }
-
-  check-confirmation:
-    name: Check Contributor Confirmation
-    runs-on: ubuntu-latest
-    if: github.event.action != 'opened'
-    steps:
-      - name: Check for confirmation comment
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const prNumber = context.issue.number;
-
-            const { data: pr } = await github.rest.pulls.get({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: prNumber,
-            });
-
-            const prAuthor = pr.user.login;
-
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: prNumber,
-            });
-
-            const confirmation = comments.find(c =>
-              c.user.login === prAuthor &&
-              c.body.toLowerCase().includes("i confirm that my contribution and following ones comply with the apache license 2.0 and the code of conduct.")
-            );
-
-            if (!confirmation) {
-              core.setFailed("❌ The PR author has not confirmed the Apache License 2.0 contribution yet.");
-            } else {
-              core.info("✅ Confirmation found.");
             }
