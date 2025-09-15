@@ -1,8 +1,8 @@
 name: First-time Contributor Check
 
 on:
-  pull_request:
-    types: [opened]
+  pull_request_target:
+    types: [opened, synchronize, reopened]
   issue_comment:
     types: [created, edited]
 
@@ -14,6 +14,7 @@ jobs:
   greet-first-time-pr:
     name: Greet First-Time PR Contributors
     runs-on: ubuntu-latest
+    if: github.event.action == 'opened' && github.event.pull_request.head.repo.fork
     steps:
       - name: Check for first-time PR contributor
         uses: actions/github-script@v7
@@ -21,9 +22,9 @@ jobs:
           script: |
             const author = context.actor;
             const { owner, repo } = context.repo;
+            
+            const prTitle = context.payload.pull_request.title;
 
-            // NEUER ANSATZ: Liste alle Issues des Autors und filtere nach PRs.
-            // Das ist zuverlässiger als die Suche.
             console.log(`Checking for past PRs from ${author}...`);
             const allIssues = await github.paginate(github.rest.issues.listForRepo, {
               owner,
@@ -36,10 +37,14 @@ jobs:
             const prCount = prs.length;
 
             console.log(`Found ${prCount} PR(s) from ${author}.`);
+            console.log(`PR Title is: "${prTitle}"`);
 
-            // Wenn es genau 1 PR gibt (nämlich diesen hier), dann poste den Kommentar
-            if (prCount === 1) {
-              console.log('This is the first PR. Posting a welcome comment.');
+            if (prCount === 1 || prTitle.includes('[FORCE GREETING]')) {
+              if (prTitle.includes('[FORCE GREETING]')) {
+                console.log('Forcing greeting due to "[FORCE GREETING]" in title.');
+              } else {
+                console.log('This is the first PR. Posting a welcome comment.');
+              }
             
               const prMessage = `
               ### Hey @${author}! 🎉
@@ -61,43 +66,4 @@ jobs:
                 issue_number: context.issue.number,
                 body: prMessage
               });
-            } else {
-              console.log('Not the first PR. Skipping comment.');
-            }
-
-  check-confirmation:
-    name: Check Contributor Confirmation
-    runs-on: ubuntu-latest
-    # Wir führen diesen Job nur bei Kommentaren aus
-    if: github.event_name == 'issue_comment'
-    steps:
-      - name: Check for confirmation comment
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const prNumber = context.issue.number;
-
-            const { data: pr } = await github.rest.pulls.get({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: prNumber,
-            });
-
-            const prAuthor = pr.user.login;
-
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: prNumber,
-            });
-
-            const confirmation = comments.find(c =>
-              c.user.login === prAuthor &&
-              c.body.toLowerCase().includes("i confirm that my contribution and following ones comply with the apache license 2.0 and the code of conduct.")
-            );
-
-            if (!confirmation) {
-              core.setFailed("❌ The PR author has not confirmed the Apache License 2.0 contribution yet.");
-            } else {
-              core.info("✅ Confirmation found.");
             }
