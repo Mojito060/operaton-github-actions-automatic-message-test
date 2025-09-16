@@ -2,7 +2,7 @@ name: First-time Contributor Check
 
 on:
   pull_request_target:
-    types: [opened, synchronize, reopened]
+    types: [opened]
 
 permissions:
   pull-requests: write
