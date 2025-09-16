@@ -55,7 +55,7 @@ jobs:
                 'utf8'
               );
             
-            prMessage = prMessage.replace(/\{\{author\}\}/g, author);
+            prMessage = prMessage.replace(/\$\{author\}/g, author);
 
               await github.rest.issues.createComment({
                 owner: owner,
